@@ -1,0 +1,11 @@
+﻿name: youtube_analytics
+version: 1.0.0
+profile: youtube_analytics
+config-version: 2
+
+model-paths: ["models"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"

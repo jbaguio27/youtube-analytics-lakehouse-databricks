@@ -1,0 +1,35 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+.uv/
+
+# Local environment variables
+.env
+.env.*
+!.env.example
+
+# Build / packaging
+build/
+dist/
+
+# dbt
+dbt/target/
+dbt/logs/
+
+# Databricks
+.databricks/
+.bundle/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

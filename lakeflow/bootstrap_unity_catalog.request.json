@@ -1,0 +1,5 @@
+﻿{
+    "wait_timeout":  "50s",
+    "warehouse_id":  "/sql/1.0/warehouses/6bdcbabcbe866b08",
+    "statement":  "CREATE TABLE IF NOT EXISTS youtube_analytics_dev.bronze.analytics_video_device_daily_raw (\n  snapshot_date DATE NOT NULL,\n  ingest_ts_utc TIMESTAMP NOT NULL,\n  source_system STRING NOT NULL,\n  request_id STRING NOT NULL,\n  schema_version STRING NOT NULL,\n  run_id STRING NOT NULL,\n  payload STRING NOT NULL\n)\nUSING DELTA\nPARTITIONED BY (snapshot_date)"
+}

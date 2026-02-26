@@ -1,0 +1,106 @@
+﻿bundle:
+  name: youtube_analytics
+
+workspace:
+  root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
+resources:
+  pipelines:
+    youtube_analytics_lakeflow:
+      name: youtube_analytics_lakeflow_${bundle.target}
+      catalog: ${var.catalog}
+      target: silver
+      continuous: false
+      serverless: true
+      libraries:
+        - file:
+            path: ./lakeflow/bronze_to_silver_pipeline.sql
+
+  jobs:
+    youtube_analytics_job:
+      name: youtube_analytics_job_${bundle.target}
+      performance_target: PERFORMANCE_OPTIMIZED
+      environments:
+        - environment_key: default_env
+          spec:
+            environment_version: "2"
+            dependencies:
+              - databricks-sdk
+      tasks:
+        - task_key: init_run_context
+          environment_key: default_env
+          spark_python_task:
+            python_file: ./ingestion/tasks/init_run_context.py
+            parameters:
+              - --catalog
+              - ${var.catalog}
+              - --job_id
+              - "{{job.id}}"
+              - --job_run_id
+              - "{{job.run_id}}"
+              - --task-run-id
+              - "{{task.run_id}}"
+
+        - task_key: ingest_data_api_to_bronze
+          environment_key: default_env
+          depends_on:
+            - task_key: init_run_context
+          spark_python_task:
+            python_file: ./ingestion/tasks/ingest_data_api_to_bronze.py
+
+        - task_key: ingest_analytics_api_to_bronze
+          environment_key: default_env
+          depends_on:
+            - task_key: ingest_data_api_to_bronze
+          spark_python_task:
+            python_file: ./ingestion/tasks/ingest_analytics_api_to_bronze.py
+
+        - task_key: run_lakeflow_pipeline
+          depends_on:
+            - task_key: ingest_analytics_api_to_bronze
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.youtube_analytics_lakeflow.id}
+
+        - task_key: dbt_run_gold
+          environment_key: default_env
+          depends_on:
+            - task_key: run_lakeflow_pipeline
+          spark_python_task:
+            python_file: ./ingestion/tasks/dbt_run_gold.py
+
+        - task_key: dbt_test
+          environment_key: default_env
+          depends_on:
+            - task_key: dbt_run_gold
+          spark_python_task:
+            python_file: ./ingestion/tasks/dbt_test.py
+
+        - task_key: optimize_tables
+          environment_key: default_env
+          depends_on:
+            - task_key: dbt_test
+          spark_python_task:
+            python_file: ./ingestion/tasks/optimize_tables.py
+
+        - task_key: finalize_run_log
+          environment_key: default_env
+          depends_on:
+            - task_key: optimize_tables
+          spark_python_task:
+            python_file: ./ingestion/tasks/finalize_run_log.py
+
+variables:
+  catalog:
+    description: Unity Catalog name for deployment target
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      catalog: youtube_analytics_dev
+
+  prod:
+    mode: production
+    variables:
+      catalog: youtube_analytics
