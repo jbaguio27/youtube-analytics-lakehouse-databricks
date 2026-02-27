@@ -27,9 +27,14 @@ dbt/logs/
 # Databricks
 .databricks/
 .bundle/
+.bundle_schema.json
 
 # IDE / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+lakeflow/*.request.json
+
+dbt/.user.yml

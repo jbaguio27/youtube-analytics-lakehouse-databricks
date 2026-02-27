@@ -1,0 +1,12 @@
+youtube_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      auth_type: pat
+      host: "{{ env_var('DBT_DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
+      catalog: "{{ env_var('YOUTUBE_ANALYTICS_CATALOG', 'youtube_analytics_dev') }}"
+      schema: "{{ env_var('YOUTUBE_ANALYTICS_SCHEMA_GOLD', 'gold') }}"
+      threads: 4

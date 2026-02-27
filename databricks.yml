@@ -1,9 +1,6 @@
 ﻿bundle:
   name: youtube_analytics
 
-workspace:
-  root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
-
 resources:
   pipelines:
     youtube_analytics_lakeflow:
@@ -14,18 +11,26 @@ resources:
       serverless: true
       libraries:
         - file:
+            path: ./lakeflow/country_reference.sql
+        - file:
             path: ./lakeflow/bronze_to_silver_pipeline.sql
 
   jobs:
     youtube_analytics_job:
       name: youtube_analytics_job_${bundle.target}
       performance_target: PERFORMANCE_OPTIMIZED
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
       environments:
         - environment_key: default_env
           spec:
             environment_version: "2"
             dependencies:
               - databricks-sdk
+              - requests
+              - python-dotenv
+              - dbt-databricks
       tasks:
         - task_key: init_run_context
           environment_key: default_env
@@ -47,6 +52,11 @@ resources:
             - task_key: init_run_context
           spark_python_task:
             python_file: ./ingestion/tasks/ingest_data_api_to_bronze.py
+            parameters:
+              - --secret-scope
+              - ${var.secret_scope}
+              - --catalog
+              - ${var.catalog}
 
         - task_key: ingest_analytics_api_to_bronze
           environment_key: default_env
@@ -54,6 +64,15 @@ resources:
             - task_key: ingest_data_api_to_bronze
           spark_python_task:
             python_file: ./ingestion/tasks/ingest_analytics_api_to_bronze.py
+            parameters:
+              - --secret-scope
+              - ${var.secret_scope}
+              - --catalog
+              - ${var.catalog}
+              - --start-date
+              - ${var.analytics_start_date}
+              - --end-date
+              - ${var.analytics_end_date}
 
         - task_key: run_lakeflow_pipeline
           depends_on:
@@ -67,6 +86,11 @@ resources:
             - task_key: run_lakeflow_pipeline
           spark_python_task:
             python_file: ./ingestion/tasks/dbt_run_gold.py
+            parameters:
+              - --catalog
+              - ${var.catalog}
+              - --schema
+              - gold
 
         - task_key: dbt_test
           environment_key: default_env
@@ -74,6 +98,11 @@ resources:
             - task_key: dbt_run_gold
           spark_python_task:
             python_file: ./ingestion/tasks/dbt_test.py
+            parameters:
+              - --catalog
+              - ${var.catalog}
+              - --schema
+              - gold
 
         - task_key: optimize_tables
           environment_key: default_env
@@ -82,25 +111,73 @@ resources:
           spark_python_task:
             python_file: ./ingestion/tasks/optimize_tables.py
 
-        - task_key: finalize_run_log
+        - task_key: post_deploy_smoke_checks
           environment_key: default_env
           depends_on:
             - task_key: optimize_tables
           spark_python_task:
+            python_file: ./scripts/post_deploy_smoke_checks.py
+            parameters:
+              - --execution-mode
+              - spark
+              - --catalog
+              - ${var.catalog}
+              - --max-gold-lag-days
+              - ${var.smoke_max_gold_lag_days}
+              - --require-latest-run-success
+              - "false"
+
+        - task_key: finalize_run_log
+          environment_key: default_env
+          run_if: ALL_DONE
+          depends_on:
+            - task_key: post_deploy_smoke_checks
+          spark_python_task:
             python_file: ./ingestion/tasks/finalize_run_log.py
+            parameters:
+              - --catalog
+              - ${var.catalog}
+              - --job-run-id
+              - "{{job.run_id}}"
+              - --task-run-id
+              - "{{task.run_id}}"
+              - --status
+              - auto
 
 variables:
   catalog:
     description: Unity Catalog name for deployment target
+  secret_scope:
+    description: Databricks secret scope containing YouTube OAuth credentials
+  analytics_start_date:
+    description: Optional backfill start date for Analytics ingestion (YYYY-MM-DD)
+  analytics_end_date:
+    description: Optional backfill end date for Analytics ingestion (YYYY-MM-DD)
+  smoke_max_gold_lag_days:
+    description: Maximum allowed lag in days for Gold smoke recency check
+  alert_email:
+    description: Email recipient for Databricks job failure notifications
 
 targets:
   dev:
-    mode: development
+    mode: production
     default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: youtube_analytics_dev
+      secret_scope: youtube-analytics
+      analytics_start_date: "2025-01-01"
+      analytics_end_date: "auto"
+      smoke_max_gold_lag_days: "7"
 
   prod:
     mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: youtube_analytics
+      secret_scope: youtube-analytics
+      analytics_start_date: "auto"
+      analytics_end_date: "auto"
+      smoke_max_gold_lag_days: "2"

@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      UV_SYSTEM_PYTHON: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: dbt parse (no warehouse connection required)
+        env:
+          DBT_DATABRICKS_HOST: https://example.databricks.com
+          DBT_DATABRICKS_HTTP_PATH: /sql/1.0/warehouses/example
+          DBT_DATABRICKS_TOKEN: dapi_example_token
+        run: uv run dbt parse --project-dir dbt --profiles-dir dbt --target dev
+
+      - name: Setup Databricks CLI
+        if: ${{ secrets.DATABRICKS_HOST != '' && secrets.DATABRICKS_TOKEN != '' && secrets.ALERT_EMAIL != '' }}
+        uses: databricks/setup-cli@main
+
+      - name: Databricks bundle validate (dev)
+        if: ${{ secrets.DATABRICKS_HOST != '' && secrets.DATABRICKS_TOKEN != '' && secrets.ALERT_EMAIL != '' }}
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: uv run databricks bundle validate --target dev --var "alert_email=${{ secrets.ALERT_EMAIL }}"
+
+      - name: dbt singular tests against Databricks
+        if: ${{ secrets.DBT_DATABRICKS_HOST != '' && secrets.DBT_DATABRICKS_HTTP_PATH != '' && secrets.DBT_DATABRICKS_TOKEN != '' }}
+        env:
+          DBT_DATABRICKS_HOST: ${{ secrets.DBT_DATABRICKS_HOST }}
+          DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_HTTP_PATH }}
+          DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
+        run: uv run dbt test --project-dir dbt --profiles-dir dbt --target dev --select test_type:singular

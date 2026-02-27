@@ -45,7 +45,10 @@ def _get_dbutils_tag(candidates: list[str]) -> str:
         context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()  # type: ignore[name-defined]
         tags = context.tags()
     except Exception as exc:
-        print(f"Could not read dbutils context tags: {exc}")
+        # On some serverless runtimes, context.tags() is not whitelisted.
+        # In that case we silently fall back to other sources.
+        if "not whitelisted" not in str(exc):
+            print(f"Could not read dbutils context tags: {exc}")
         return ""
 
     for key in candidates:
