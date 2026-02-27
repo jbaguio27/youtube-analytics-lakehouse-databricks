@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       UV_SYSTEM_PYTHON: "1"
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+      DBT_DATABRICKS_HOST: ${{ secrets.DBT_DATABRICKS_HOST }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_HTTP_PATH }}
+      DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,20 +40,13 @@ jobs:
         run: uv run dbt parse --project-dir dbt --profiles-dir dbt --target dev
 
       - name: Setup Databricks CLI
-        if: ${{ secrets.DATABRICKS_HOST != '' && secrets.DATABRICKS_TOKEN != '' && secrets.ALERT_EMAIL != '' }}
+        if: ${{ env.DATABRICKS_HOST != '' && env.DATABRICKS_TOKEN != '' && env.ALERT_EMAIL != '' }}
         uses: databricks/setup-cli@main
 
       - name: Databricks bundle validate (dev)
-        if: ${{ secrets.DATABRICKS_HOST != '' && secrets.DATABRICKS_TOKEN != '' && secrets.ALERT_EMAIL != '' }}
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        if: ${{ env.DATABRICKS_HOST != '' && env.DATABRICKS_TOKEN != '' && env.ALERT_EMAIL != '' }}
         run: uv run databricks bundle validate --target dev --var "alert_email=${{ secrets.ALERT_EMAIL }}"
 
       - name: dbt singular tests against Databricks
-        if: ${{ secrets.DBT_DATABRICKS_HOST != '' && secrets.DBT_DATABRICKS_HTTP_PATH != '' && secrets.DBT_DATABRICKS_TOKEN != '' }}
-        env:
-          DBT_DATABRICKS_HOST: ${{ secrets.DBT_DATABRICKS_HOST }}
-          DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_HTTP_PATH }}
-          DBT_DATABRICKS_TOKEN: ${{ secrets.DBT_DATABRICKS_TOKEN }}
+        if: ${{ env.DBT_DATABRICKS_HOST != '' && env.DBT_DATABRICKS_HTTP_PATH != '' && env.DBT_DATABRICKS_TOKEN != '' }}
         run: uv run dbt test --project-dir dbt --profiles-dir dbt --target dev --select test_type:singular
