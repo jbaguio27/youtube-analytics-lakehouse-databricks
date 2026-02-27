@@ -39,6 +39,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Bootstrap prod catalog and schemas
+        run: |
+          databricks sql query execute --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}" --statement "CREATE CATALOG IF NOT EXISTS youtube_analytics"
+          databricks sql query execute --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}" --statement "CREATE SCHEMA IF NOT EXISTS youtube_analytics.bronze"
+          databricks sql query execute --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}" --statement "CREATE SCHEMA IF NOT EXISTS youtube_analytics.silver"
+          databricks sql query execute --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}" --statement "CREATE SCHEMA IF NOT EXISTS youtube_analytics.gold"
+
       - name: Validate prod bundle
         run: uv run databricks bundle validate --target prod --var "alert_email=${{ secrets.ALERT_EMAIL }}"
 
