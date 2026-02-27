@@ -1,0 +1,125 @@
+version: 2
+
+sources:
+  - name: silver
+    schema: "{{ env_var('YOUTUBE_ANALYTICS_SCHEMA_SILVER', 'silver_physical') }}"
+    tables:
+      - name: silver_videos
+      - name: silver_channels
+      - name: fact_channel_daily_metrics
+      - name: fact_video_daily_metrics
+      - name: fact_video_country_metrics
+      - name: fact_video_device_metrics
+      - name: fact_video_traffic_source_metrics
+      - name: dim_country
+      - name: dim_device
+      - name: dim_traffic_source
+
+models:
+  - name: gold_channel_daily_summary
+    columns:
+      - name: channel_id
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null
+      - name: views
+        tests:
+          - not_null
+      - name: comments
+        tests:
+          - not_null
+      - name: estimated_minutes_watched
+        tests:
+          - not_null
+
+  - name: gold_video_daily_summary
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null
+      - name: channel_id
+        tests:
+          - not_null
+      - name: video_id
+        tests:
+          - relationships:
+              arguments:
+                to: source('silver', 'silver_videos')
+                field: video_id
+
+  - name: gold_video_country_daily_summary
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null
+      - name: channel_id
+        tests:
+          - not_null
+      - name: country_code
+        tests:
+          - not_null
+      - name: country_code
+        tests:
+          - relationships:
+              arguments:
+                to: source('silver', 'dim_country')
+                field: country_code
+
+  - name: gold_video_device_daily_summary
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null
+      - name: channel_id
+        tests:
+          - not_null
+      - name: device_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - DESKTOP
+                  - MOBILE
+                  - TABLET
+                  - TV
+                  - GAME_CONSOLE
+                  - UNKNOWN
+      - name: device_type
+        tests:
+          - relationships:
+              arguments:
+                to: source('silver', 'dim_device')
+                field: device_type
+
+  - name: gold_video_traffic_source_daily_summary
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null
+      - name: channel_id
+        tests:
+          - not_null
+      - name: source_id
+        tests:
+          - not_null
+      - name: source_id
+        tests:
+          - relationships:
+              arguments:
+                to: source('silver', 'dim_traffic_source')
+                field: source_id

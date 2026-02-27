@@ -1,0 +1,85 @@
+name: prod-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to release (branch, tag, or commit SHA)"
+        required: false
+        default: "main"
+      max_gold_lag_days:
+        description: "Smoke check max allowed lag days for Gold"
+        required: false
+        default: "2"
+
+jobs:
+  validate-prod:
+    runs-on: ubuntu-latest
+    env:
+      UV_SYSTEM_PYTHON: "1"
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'main' }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Validate prod bundle
+        run: uv run databricks bundle validate --target prod --var "alert_email=${{ secrets.ALERT_EMAIL }}"
+
+  deploy-and-verify-prod:
+    needs: validate-prod
+    runs-on: ubuntu-latest
+    env:
+      UV_SYSTEM_PYTHON: "1"
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_SQL_WAREHOUSE_ID: ${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'main' }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Deploy prod bundle
+        run: uv run databricks bundle deploy --target prod --var "alert_email=${{ secrets.ALERT_EMAIL }}"
+
+      - name: Run prod job
+        run: uv run databricks bundle run youtube_analytics_job --target prod --var "alert_email=${{ secrets.ALERT_EMAIL }}"
+
+      - name: Post-deploy smoke checks
+        run: >
+          uv run python scripts/post_deploy_smoke_checks.py
+          --execution-mode sql_warehouse
+          --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}"
+          --catalog youtube_analytics
+          --max-gold-lag-days "${{ github.event.inputs.max_gold_lag_days || '2' }}"
