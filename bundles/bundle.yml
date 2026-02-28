@@ -89,8 +89,12 @@ resources:
             parameters:
               - --catalog
               - ${var.catalog}
+              - --silver-schema
+              - silver
               - --schema
               - gold
+              - --target
+              - ${bundle.target}
 
         - task_key: dbt_test
           environment_key: default_env
@@ -101,8 +105,14 @@ resources:
             parameters:
               - --catalog
               - ${var.catalog}
+              - --silver-schema
+              - silver
               - --schema
               - gold
+              - --target
+              - ${bundle.target}
+              - --gold-freshness-max-lag-days
+              - ${var.smoke_max_gold_lag_days}
 
         - task_key: optimize_tables
           environment_key: default_env
@@ -180,4 +190,4 @@ targets:
       secret_scope: youtube-analytics
       analytics_start_date: "auto"
       analytics_end_date: "auto"
-      smoke_max_gold_lag_days: "2"
+      smoke_max_gold_lag_days: "3"

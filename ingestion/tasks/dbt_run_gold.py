@@ -13,6 +13,11 @@ from pathlib import Path
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run dbt Gold models.")
     parser.add_argument("--catalog", default=os.getenv("YOUTUBE_ANALYTICS_CATALOG", "youtube_analytics_dev"))
+    parser.add_argument(
+        "--silver-schema",
+        default=os.getenv("YOUTUBE_ANALYTICS_SCHEMA_SILVER", "silver"),
+        help="Schema where Silver source objects are stored.",
+    )
     parser.add_argument("--schema", default=os.getenv("DBT_SCHEMA", "gold"))
     parser.add_argument("--target", default=os.getenv("DBT_TARGET", "dev"))
     parser.add_argument("--project-dir", default=os.getenv("DBT_PROJECT_DIR", "dbt"))
@@ -203,6 +208,7 @@ def _dbt_args(*, command: str, project_dir: Path, profiles_dir: Path, target: st
 
 def main() -> None:
     args = _parse_args()
+    os.environ["YOUTUBE_ANALYTICS_SCHEMA_SILVER"] = args.silver_schema
     if shutil.which("dbt") is None:
         raise RuntimeError("dbt CLI is not installed in this runtime. Add dbt-databricks dependency.")
 

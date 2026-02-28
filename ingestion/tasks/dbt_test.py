@@ -13,6 +13,11 @@ from pathlib import Path
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run dbt tests.")
     parser.add_argument("--catalog", default=os.getenv("YOUTUBE_ANALYTICS_CATALOG", "youtube_analytics_dev"))
+    parser.add_argument(
+        "--silver-schema",
+        default=os.getenv("YOUTUBE_ANALYTICS_SCHEMA_SILVER", "silver"),
+        help="Schema where Silver source objects are stored.",
+    )
     parser.add_argument("--schema", default=os.getenv("DBT_SCHEMA", "gold"))
     parser.add_argument("--target", default=os.getenv("DBT_TARGET", "dev"))
     parser.add_argument("--project-dir", default=os.getenv("DBT_PROJECT_DIR", "dbt"))
@@ -20,6 +25,12 @@ def _parse_args() -> argparse.Namespace:
         "--select",
         default=os.getenv("DBT_TEST_SELECT", "path:models"),
         help="dbt test selection expression",
+    )
+    parser.add_argument(
+        "--gold-freshness-max-lag-days",
+        type=int,
+        default=int(os.getenv("DBT_GOLD_FRESHNESS_MAX_LAG_DAYS", "7")),
+        help="dbt var gold_freshness_max_lag_days used by freshness tests.",
     )
     parser.add_argument("--secret-scope", default=os.getenv("DATABRICKS_SECRET_SCOPE", "youtube-analytics"))
     parser.add_argument("--host-secret-key", default="dbt_host")
@@ -203,6 +214,7 @@ def _dbt_args(*, command: str, project_dir: Path, profiles_dir: Path, target: st
 
 def main() -> None:
     args = _parse_args()
+    os.environ["YOUTUBE_ANALYTICS_SCHEMA_SILVER"] = args.silver_schema
     if shutil.which("dbt") is None:
         raise RuntimeError("dbt CLI is not installed in this runtime. Add dbt-databricks dependency.")
 
@@ -225,6 +237,8 @@ def main() -> None:
                     profiles_dir=profiles_dir,
                     target=args.target,
                 ),
+                "--vars",
+                f"gold_freshness_max_lag_days: {args.gold_freshness_max_lag_days}",
                 "--select",
                 args.select,
             ],

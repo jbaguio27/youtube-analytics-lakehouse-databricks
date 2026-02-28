@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: silver
-    schema: "{{ env_var('YOUTUBE_ANALYTICS_SCHEMA_SILVER', 'silver_physical') }}"
+    schema: "{{ env_var('YOUTUBE_ANALYTICS_SCHEMA_SILVER', 'silver') }}"
     tables:
       - name: silver_videos
       - name: silver_channels

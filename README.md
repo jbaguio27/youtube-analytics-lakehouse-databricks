@@ -20,18 +20,19 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
    - `dbt_run_gold`
    - `dbt_test`
    - `optimize_tables`
+   - `post_deploy_smoke_checks`
    - `finalize_run_log`
-5. Use optimized physical tables in `silver_physical` as dbt Gold sources (`ingestion/tasks/optimize_tables.py`, `dbt/models/schema.yml`).
+5. Build Gold models from canonical Silver objects in `silver` (`ingestion/tasks/dbt_run_gold.py`, `dbt/models/schema.yml`).
 
 ## Architecture
 - Orchestration: Databricks Job + Databricks Asset Bundles (`databricks.yml`, `bundles/bundle.yml`).
 - Ingestion: Python Spark tasks ingest raw YouTube API payloads to Bronze Delta tables (`ingestion/tasks/ingest_data_api_to_bronze.py`, `ingestion/tasks/ingest_analytics_api_to_bronze.py`).
 - Transformation: Lakeflow Declarative Pipeline SQL creates Silver materialized views (`lakeflow/bronze_to_silver_pipeline.sql`).
-- Physical serving layer: `optimize_tables.py` materializes Silver views into `silver_physical` and runs `OPTIMIZE` on supported tables.
+- Table maintenance: `optimize_tables.py` runs `OPTIMIZE` on supported Delta tables in Bronze/Silver/Gold and skips unsupported object types (for example views/materialized views).
 - Gold modeling/testing: dbt models and tests run from Databricks tasks (`ingestion/tasks/dbt_run_gold.py`, `ingestion/tasks/dbt_test.py`, `dbt/models`, `dbt/tests`).
 - CI validation: GitHub Actions workflow (`.github/workflows/ci.yml`).
-- Dev deploy workflow (`.github/workflows/dev-deploy.yml`) for validate/deploy/run/smoke on `main` or manual trigger.
-- Prod release workflow (`.github/workflows/prod-release.yml`).
+- Dev deploy workflow (`.github/workflows/dev-deploy.yml`) for bootstrap/validate/deploy/run/smoke on `main` or manual trigger.
+- Prod release workflow (`.github/workflows/prod-release.yml`) for bootstrap/validate/deploy/run/smoke.
 
 ## Tech stack
 - Python 3.11+ and uv.
@@ -187,6 +188,7 @@ uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_wareh
 ```bash
 uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics --max-gold-lag-days 2
 ```
+Default prod lag threshold is `3` days (`smoke_max_gold_lag_days` in bundle target vars).
 
 Rollback:
 - Redeploy the last known-good git tag/commit, then run the same prod deployment commands.
@@ -231,7 +233,7 @@ Evidence needed: a docs deploy workflow or hosting config.
 Implemented checks:
 - Gold uniqueness tests by grain (`dbt/tests/test_gold_*_unique.sql`).
 - Non-negative metric test (`dbt/tests/test_gold_metrics_non_negative.sql`).
-- Gold recency/freshness test (`dbt/tests/test_gold_freshness_recency.sql`).
+- Gold recency/freshness test on core Gold tables (`dbt/tests/test_gold_freshness_recency.sql`), with threshold controlled by dbt var `gold_freshness_max_lag_days`.
 - `not_null` and relationship checks in `dbt/models/schema.yml`.
 - Warning-only monitor for new traffic source IDs (`dbt/tests/warn_new_traffic_source_ids.sql`).
 
@@ -312,8 +314,11 @@ Evidence needed: dashboard source files, BI project folder, or export artifacts.
   - Confirm bundle file sync path and `DBT_PROJECT_DIR` value.
   - Evidence: project-dir search logic in `ingestion/tasks/dbt_run_gold.py` and `ingestion/tasks/dbt_test.py`.
 - Optimize step skips Silver views:
-  - Expected behavior for unsupported table types; physical copies are created under `silver_physical`.
+  - Expected behavior for unsupported table types: they are skipped by `optimize_tables.py`.
   - Evidence: `ingestion/tasks/optimize_tables.py`.
+- dbt freshness test fails in prod:
+  - Check lag with smoke check (`--max-gold-lag-days`) and align dbt lag threshold (`gold_freshness_max_lag_days` via `dbt_test.py` task args).
+  - Evidence: `dbt/tests/test_gold_freshness_recency.sql`, `ingestion/tasks/dbt_test.py`, `databricks.yml`.
 
 ## Roadmap
 - Add dashboard/reporting assets.

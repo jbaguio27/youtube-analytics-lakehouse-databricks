@@ -4,15 +4,6 @@ with latest_dates as (
   union all
   select 'gold_video_daily_summary' as model_name, max(date) as max_date
   from {{ ref('gold_video_daily_summary') }}
-  union all
-  select 'gold_video_country_daily_summary' as model_name, max(date) as max_date
-  from {{ ref('gold_video_country_daily_summary') }}
-  union all
-  select 'gold_video_device_daily_summary' as model_name, max(date) as max_date
-  from {{ ref('gold_video_device_daily_summary') }}
-  union all
-  select 'gold_video_traffic_source_daily_summary' as model_name, max(date) as max_date
-  from {{ ref('gold_video_traffic_source_daily_summary') }}
 )
 select
   model_name,

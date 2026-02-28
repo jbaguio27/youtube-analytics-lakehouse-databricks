@@ -42,22 +42,6 @@ TABLES_TO_OPTIMIZE: dict[str, list[str]] = {
         "dim_device",
         "dim_country_reference",
     ],
-    "silver_physical": [
-        "silver_channels",
-        "silver_videos",
-        "silver_video_stats_snapshot",
-        "silver_video_metadata_scd2",
-        "fact_channel_daily_metrics",
-        "fact_video_daily_metrics",
-        "fact_video_traffic_source_metrics",
-        "fact_video_country_metrics",
-        "fact_video_device_metrics",
-        "dim_date",
-        "dim_traffic_source",
-        "dim_country",
-        "dim_device",
-        "dim_country_reference",
-    ],
     "gold": [
         "gold_channel_daily_summary",
         "gold_video_daily_summary",
@@ -66,8 +50,6 @@ TABLES_TO_OPTIMIZE: dict[str, list[str]] = {
         "gold_video_traffic_source_daily_summary",
     ],
 }
-
-SILVER_OBJECTS = TABLES_TO_OPTIMIZE["silver"]
 
 
 def _validate_identifier(value: str, name: str) -> str:
@@ -91,17 +73,10 @@ def _task_value_optional(key: str) -> str:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Optimize Delta tables.")
     parser.add_argument("--catalog", default=os.getenv("YOUTUBE_ANALYTICS_CATALOG", DEFAULT_CATALOG))
-    parser.add_argument("--source-schema", default="silver")
-    parser.add_argument("--target-schema", default="silver_physical")
     parser.add_argument(
         "--schemas",
-        default="bronze,silver,silver_physical,gold",
-        help="Comma-separated schemas to optimize (default: bronze,silver,silver_physical,gold).",
-    )
-    parser.add_argument(
-        "--skip-materialize",
-        action="store_true",
-        help="Skip materializing Silver views into silver_physical before optimize.",
+        default="bronze,silver,gold",
+        help="Comma-separated schemas to optimize (default: bronze,silver,gold).",
     )
     parser.add_argument(
         "--strict",
@@ -124,62 +99,15 @@ def _iter_targets(schemas: Iterable[str]) -> Iterable[tuple[str, str]]:
         for table in TABLES_TO_OPTIMIZE.get(schema, []):
             yield schema, table
 
-
-def _materialize_silver_tables(
-    spark: SparkSession,
-    *,
-    catalog: str,
-    source_schema: str,
-    target_schema: str,
-    strict: bool,
-) -> tuple[list[str], list[dict[str, str]], list[dict[str, str]]]:
-    spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{catalog}`.`{target_schema}`")
-
-    materialized: list[str] = []
-    skipped: list[dict[str, str]] = []
-    failed: list[dict[str, str]] = []
-
-    for object_name in SILVER_OBJECTS:
-        source_fqn = f"`{catalog}`.`{source_schema}`.`{object_name}`"
-        target_fqn = f"`{catalog}`.`{target_schema}`.`{object_name}`"
-        try:
-            if not spark.catalog.tableExists(f"{catalog}.{source_schema}.{object_name}"):
-                skipped.append({"source": source_fqn, "reason": "source_not_found"})
-                continue
-            spark.sql(f"CREATE OR REPLACE TABLE {target_fqn} AS SELECT * FROM {source_fqn}")
-            materialized.append(target_fqn)
-        except Exception as exc:
-            failed.append({"source": source_fqn, "target": target_fqn, "error": str(exc)})
-            if strict:
-                raise RuntimeError(f"Failed to materialize {source_fqn} -> {target_fqn}") from exc
-
-    return materialized, skipped, failed
-
-
 def main() -> None:
     args = _parse_args()
     catalog_value = _task_value_optional("catalog") or args.catalog
     catalog = _validate_identifier(catalog_value, "catalog")
-    source_schema = _validate_identifier(args.source_schema, "source_schema")
-    target_schema = _validate_identifier(args.target_schema, "target_schema")
-
     schema_names = [s.strip().lower() for s in args.schemas.split(",") if s.strip()]
     for schema in schema_names:
         _validate_identifier(schema, "schema")
 
     spark = SparkSession.builder.getOrCreate()
-
-    materialized: list[str] = []
-    materialize_skipped: list[dict[str, str]] = []
-    materialize_failed: list[dict[str, str]] = []
-    if not args.skip_materialize:
-        materialized, materialize_skipped, materialize_failed = _materialize_silver_tables(
-            spark,
-            catalog=catalog,
-            source_schema=source_schema,
-            target_schema=target_schema,
-            strict=args.strict,
-        )
 
     optimized: list[str] = []
     skipped: list[dict[str, str]] = []
@@ -208,15 +136,7 @@ def main() -> None:
             {
                 "status": "ok" if not failed else "partial_error",
                 "catalog": catalog,
-                "source_schema": source_schema,
-                "target_schema": target_schema,
                 "schemas": schema_names,
-                "materialized_count": len(materialized),
-                "materialized_skipped_count": len(materialize_skipped),
-                "materialized_failed_count": len(materialize_failed),
-                "materialized": materialized,
-                "materialize_skipped": materialize_skipped,
-                "materialize_failed": materialize_failed,
                 "optimized_count": len(optimized),
                 "skipped_count": len(skipped),
                 "failed_count": len(failed),

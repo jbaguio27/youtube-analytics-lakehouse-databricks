@@ -56,7 +56,9 @@ def _dbx_api(
     profile: str,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    args = ["api", method, path, "--profile", profile, "-o", "json"]
+    args = ["api", method, path, "-o", "json"]
+    if profile:
+        args.extend(["--profile", profile])
     tmp_path: Path | None = None
     if payload is not None:
         with tempfile.NamedTemporaryFile(
@@ -255,8 +257,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile",
-        default=os.getenv("DATABRICKS_CONFIG_PROFILE", "sef_databricks"),
-        help="Databricks CLI profile.",
+        default=os.getenv("DATABRICKS_CONFIG_PROFILE", ""),
+        help="Databricks CLI profile (optional when using env-based auth).",
     )
     parser.add_argument(
         "--catalog",

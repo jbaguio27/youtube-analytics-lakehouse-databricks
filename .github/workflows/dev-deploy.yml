@@ -43,6 +43,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Bootstrap dev catalog, schemas, and Bronze tables
+        run: >
+          uv run python scripts/unity_catalog_setup.py
+          --action bootstrap
+          --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}"
+          --catalog youtube_analytics_dev
+
       - name: Validate dev bundle
         run: uv run databricks bundle validate --target dev --var "alert_email=${{ secrets.ALERT_EMAIL }}"
 

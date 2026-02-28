@@ -56,7 +56,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Bootstrap YouTube OAuth secrets in Databricks.")
     parser.add_argument(
         "--profile",
-        default=os.getenv("DATABRICKS_CONFIG_PROFILE", "sef_databricks"),
+        default=os.getenv("DATABRICKS_CONFIG_PROFILE", "DEFAULT"),
         help="Databricks CLI profile name.",
     )
     parser.add_argument(
