@@ -35,7 +35,7 @@ resources:
         - task_key: init_run_context
           environment_key: default_env
           spark_python_task:
-            python_file: ./ingestion/tasks/init_run_context.py
+            python_file: ./job_tasks/bronze/init_run_context.py
             parameters:
               - --catalog
               - ${var.catalog}
@@ -51,7 +51,7 @@ resources:
           depends_on:
             - task_key: init_run_context
           spark_python_task:
-            python_file: ./ingestion/tasks/ingest_data_api_to_bronze.py
+            python_file: ./job_tasks/bronze/ingest_data_api_to_bronze.py
             parameters:
               - --secret-scope
               - ${var.secret_scope}
@@ -63,7 +63,7 @@ resources:
           depends_on:
             - task_key: ingest_data_api_to_bronze
           spark_python_task:
-            python_file: ./ingestion/tasks/ingest_analytics_api_to_bronze.py
+            python_file: ./job_tasks/bronze/ingest_analytics_api_to_bronze.py
             parameters:
               - --secret-scope
               - ${var.secret_scope}
@@ -85,7 +85,7 @@ resources:
           depends_on:
             - task_key: run_lakeflow_pipeline
           spark_python_task:
-            python_file: ./ingestion/tasks/dbt_run_gold.py
+            python_file: ./job_tasks/gold/dbt_run_gold.py
             parameters:
               - --catalog
               - ${var.catalog}
@@ -101,7 +101,7 @@ resources:
           depends_on:
             - task_key: dbt_run_gold
           spark_python_task:
-            python_file: ./ingestion/tasks/dbt_test.py
+            python_file: ./job_tasks/gold/dbt_test.py
             parameters:
               - --catalog
               - ${var.catalog}
@@ -119,7 +119,7 @@ resources:
           depends_on:
             - task_key: dbt_test
           spark_python_task:
-            python_file: ./ingestion/tasks/optimize_tables.py
+            python_file: ./job_tasks/ops/optimize_tables.py
 
         - task_key: post_deploy_smoke_checks
           environment_key: default_env
@@ -143,7 +143,7 @@ resources:
           depends_on:
             - task_key: post_deploy_smoke_checks
           spark_python_task:
-            python_file: ./ingestion/tasks/finalize_run_log.py
+            python_file: ./job_tasks/ops/finalize_run_log.py
             parameters:
               - --catalog
               - ${var.catalog}

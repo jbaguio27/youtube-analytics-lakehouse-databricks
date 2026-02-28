@@ -5,7 +5,7 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 
 ## What this Repo Contains?
 - Databricks Asset Bundle configuration for one job and one Lakeflow pipeline (`databricks.yml`, `bundles/bundle.yml`).
-- Python ingestion and operations tasks for Bronze ingestion, optimization, and run logging (`ingestion/tasks/*.py`).
+- Python Databricks job tasks organized by stage (`job_tasks/bronze/*.py`, `job_tasks/gold/*.py`, `job_tasks/ops/*.py`).
 - Lakeflow SQL definitions for Silver materialized views and country reference mapping (`lakeflow/bronze_to_silver_pipeline.sql`, `lakeflow/country_reference.sql`).
 - dbt project with Gold models and tests (`dbt/dbt_project.yml`, `dbt/models`, `dbt/tests`, `dbt/profiles.yml`).
 - Utility scripts for OAuth refresh token retrieval, Databricks secret bootstrap, Unity Catalog/Bronze validation, and post-deploy smoke checks (`scripts/*.py`).
@@ -28,10 +28,10 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 
 ## Architecture
 - Orchestration: Databricks Job + Databricks Asset Bundles (`databricks.yml`, `bundles/bundle.yml`).
-- Ingestion: Python Spark tasks ingest raw YouTube API payloads to Bronze Delta tables (`ingestion/tasks/ingest_data_api_to_bronze.py`, `ingestion/tasks/ingest_analytics_api_to_bronze.py`).
+- Ingestion: Python Spark tasks ingest raw YouTube API payloads to Bronze Delta tables (`job_tasks/bronze/ingest_data_api_to_bronze.py`, `job_tasks/bronze/ingest_analytics_api_to_bronze.py`).
 - Transformation: Lakeflow Declarative Pipeline SQL creates Silver materialized views (`lakeflow/bronze_to_silver_pipeline.sql`).
 - Table maintenance: `optimize_tables.py` runs `OPTIMIZE` on supported Delta tables and skips views/materialized views by design.
-- Gold modeling/testing: dbt models and tests run from Databricks tasks (`ingestion/tasks/dbt_run_gold.py`, `ingestion/tasks/dbt_test.py`, `dbt/models`, `dbt/tests`).
+- Gold modeling/testing: dbt models and tests run from Databricks tasks (`job_tasks/gold/dbt_run_gold.py`, `job_tasks/gold/dbt_test.py`, `dbt/models`, `dbt/tests`).
 - CI validation: GitHub Actions workflow (`.github/workflows/ci.yml`).
 - Dev deploy workflow (`.github/workflows/dev-deploy.yml`) for validate/deploy/run/smoke on `main` or manual trigger.
 - Prod release workflow (`.github/workflows/prod-release.yml`).
@@ -40,11 +40,11 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 - Python 3.11+ and uv.
   - Where in repo: `pyproject.toml`, `uv.lock`.
 - Databricks SDK for Python.
-  - Where in repo: `pyproject.toml`, `ingestion/tasks/finalize_run_log.py`.
+  - Where in repo: `pyproject.toml`, `job_tasks/ops/finalize_run_log.py`.
 - Databricks CLI (external prerequisite used by scripts/commands).
   - Where in repo: `scripts/bootstrap_youtube_secrets.py`, `scripts/unity_catalog_setup.py`, `databricks.yml` usage.
 - Spark / PySpark runtime.
-  - Where in repo: `ingestion/tasks/*.py` imports `pyspark.sql`.
+  - Where in repo: `job_tasks/**/*.py` imports `pyspark.sql`.
 - Lakeflow Declarative Pipelines SQL.
   - Where in repo: `lakeflow/bronze_to_silver_pipeline.sql`, `databricks.yml` pipeline resource.
 - dbt with `dbt-databricks` adapter.
@@ -57,10 +57,10 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
   - `channels`
   - `playlistItems`
   - `videos`
-  - Evidence: `ingestion/tasks/ingest_data_api_to_bronze.py`.
+  - Evidence: `job_tasks/bronze/ingest_data_api_to_bronze.py`.
 - YouTube Analytics API reports endpoint:
   - `https://youtubeanalytics.googleapis.com/v2/reports`
-  - Evidence: `ingestion/tasks/ingest_analytics_api_to_bronze.py`.
+  - Evidence: `job_tasks/bronze/ingest_analytics_api_to_bronze.py`.
 - Google OAuth endpoints for token flow:
   - Evidence: `scripts/get_youtube_refresh_token.py`.
 
@@ -75,7 +75,7 @@ Bronze tables:
 - `analytics_video_country_daily_raw`
 - `analytics_video_device_daily_raw`
 - `run_context_log`
-- Evidence: `lakeflow/bootstrap_unity_catalog.sql`, `ingestion/tasks/init_run_context.py`.
+- Evidence: `lakeflow/bootstrap_unity_catalog.sql`, `job_tasks/bronze/init_run_context.py`.
 
 Silver materialized views (`silver`):
 - `silver_channels`
@@ -111,7 +111,7 @@ Gold dbt models:
   - Evidence: `databricks.yml`, `bundles/bundle.yml`.
 - Finalization behavior:
   - `finalize_run_log` runs with `run_if: ALL_DONE` and writes terminal status.
-  - Evidence: `databricks.yml`, `ingestion/tasks/finalize_run_log.py`.
+  - Evidence: `databricks.yml`, `job_tasks/ops/finalize_run_log.py`.
 - CI pipeline:
   - `uv sync`, `dbt parse`, optional Databricks bundle validate and dbt singular tests when secrets are present.
   - Evidence: `.github/workflows/ci.yml`.
@@ -240,11 +240,11 @@ Implemented checks:
 
 ## Observability and Logging
 - `init_run_context` writes run metadata and context JSON to `bronze.run_context_log`.
-  - Evidence: `ingestion/tasks/init_run_context.py`.
+  - Evidence: `job_tasks/bronze/init_run_context.py`.
 - `finalize_run_log` updates run status/finalization fields (`run_status`, `finished_ts_utc`, `finalized_ts_utc`, `finalize_task_run_id`).
-  - Evidence: `ingestion/tasks/finalize_run_log.py`.
+  - Evidence: `job_tasks/ops/finalize_run_log.py`.
 - Ingestion tasks print structured JSON summaries with row/table counts.
-  - Evidence: `ingestion/tasks/ingest_data_api_to_bronze.py`, `ingestion/tasks/ingest_analytics_api_to_bronze.py`.
+  - Evidence: `job_tasks/bronze/ingest_data_api_to_bronze.py`, `job_tasks/bronze/ingest_analytics_api_to_bronze.py`.
 
 ## Repository Structure
 ```text
@@ -279,14 +279,16 @@ Implemented checks:
 │       ├── test_gold_video_device_daily_summary_unique.sql
 │       ├── test_gold_video_traffic_source_daily_summary_unique.sql
 │       └── warn_new_traffic_source_ids.sql
-├── ingestion/
-│   └── tasks/
-│       ├── dbt_run_gold.py
-│       ├── dbt_test.py
+├── job_tasks/
+│   ├── bronze/
+│   │   ├── ingest_analytics_api_to_bronze.py
+│   │   ├── ingest_data_api_to_bronze.py
+│   │   └── init_run_context.py
+│   ├── gold/
+│   │   ├── dbt_run_gold.py
+│   │   └── dbt_test.py
+│   └── ops/
 │       ├── finalize_run_log.py
-│       ├── ingest_analytics_api_to_bronze.py
-│       ├── ingest_data_api_to_bronze.py
-│       ├── init_run_context.py
 │       └── optimize_tables.py
 ├── lakeflow/
 │   ├── bootstrap_unity_catalog.sql
@@ -316,10 +318,10 @@ Implemented checks:
   - Evidence: repository commands/scripts rely on Databricks CLI.
 - dbt job task cannot find dbt project:
   - Confirm bundle file sync path and `DBT_PROJECT_DIR` value.
-  - Evidence: project-dir search logic in `ingestion/tasks/dbt_run_gold.py` and `ingestion/tasks/dbt_test.py`.
+  - Evidence: project-dir search logic in `job_tasks/gold/dbt_run_gold.py` and `job_tasks/gold/dbt_test.py`.
 - Optimize step skips Silver views:
   - Expected behavior for unsupported table types (`VIEW`, `MATERIALIZED_VIEW`); `OPTIMIZE` is applied only to supported Delta tables.
-  - Evidence: `ingestion/tasks/optimize_tables.py`.
+  - Evidence: `job_tasks/ops/optimize_tables.py`.
 
 ## Roadmap
 - Add dashboard/reporting assets.

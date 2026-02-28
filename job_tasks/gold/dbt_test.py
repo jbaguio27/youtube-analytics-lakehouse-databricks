@@ -1,4 +1,4 @@
-"""Run dbt models for the Gold layer."""
+"""Run dbt tests for the Gold layer."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run dbt Gold models.")
+    parser = argparse.ArgumentParser(description="Run dbt tests.")
     parser.add_argument("--catalog", default=os.getenv("YOUTUBE_ANALYTICS_CATALOG", "youtube_analytics_dev"))
     parser.add_argument(
         "--silver-schema",
@@ -23,8 +23,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--project-dir", default=os.getenv("DBT_PROJECT_DIR", "dbt"))
     parser.add_argument(
         "--select",
-        default=os.getenv("DBT_RUN_SELECT", "path:models"),
-        help="dbt selection expression",
+        default=os.getenv("DBT_TEST_SELECT", "path:models"),
+        help="dbt test selection expression",
+    )
+    parser.add_argument(
+        "--gold-freshness-max-lag-days",
+        type=int,
+        default=int(os.getenv("DBT_GOLD_FRESHNESS_MAX_LAG_DAYS", "7")),
+        help="dbt var gold_freshness_max_lag_days used by freshness tests.",
     )
     parser.add_argument("--secret-scope", default=os.getenv("DATABRICKS_SECRET_SCOPE", "youtube-analytics"))
     parser.add_argument("--host-secret-key", default="dbt_host")
@@ -48,7 +54,7 @@ def _resolve_project_dir(project_dir: str) -> Path:
         _add(requested)
     else:
         cwd = Path.cwd().resolve()
-        # Search from cwd upwards; Databricks often runs inside ingestion/tasks.
+        # Search from cwd upwards; Databricks often runs inside a task subdirectory.
         for base in [cwd, *cwd.parents]:
             _add((base / requested).resolve())
 
@@ -224,35 +230,15 @@ def main() -> None:
     )
     try:
         _run_command(
-            _dbt_args(
-                command="debug",
-                project_dir=project_dir,
-                profiles_dir=profiles_dir,
-                target=args.target,
-            ),
-            cwd=project_dir,
-        )
-        has_dbt_deps = (project_dir / "packages.yml").exists() or (project_dir / "dependencies.yml").exists()
-        if has_dbt_deps:
-            _run_command(
-                _dbt_args(
-                    command="deps",
-                    project_dir=project_dir,
-                    profiles_dir=profiles_dir,
-                    target=args.target,
-                ),
-                cwd=project_dir,
-            )
-        else:
-            print("Skipping dbt deps: no packages.yml/dependencies.yml found.")
-        _run_command(
             [
                 *_dbt_args(
-                    command="run",
+                    command="test",
                     project_dir=project_dir,
                     profiles_dir=profiles_dir,
                     target=args.target,
                 ),
+                "--vars",
+                f"gold_freshness_max_lag_days: {args.gold_freshness_max_lag_days}",
                 "--select",
                 args.select,
             ],

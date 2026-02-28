@@ -29,7 +29,7 @@ if "pyspark" not in sys.modules:
     sys.modules["pyspark.sql"] = sql_mod
     sys.modules["pyspark.sql.types"] = types_mod
 
-from ingestion.tasks.ingest_analytics_api_to_bronze import _resolve_window
+from job_tasks.bronze.ingest_analytics_api_to_bronze import _resolve_window
 
 
 def _args(*, start_date: str, end_date: str, lookback_days: int = 7) -> Namespace:
