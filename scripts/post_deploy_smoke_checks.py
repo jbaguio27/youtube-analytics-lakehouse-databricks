@@ -26,7 +26,7 @@ REQUIRED_TABLES: dict[str, list[str]] = {
         "analytics_channel_daily_raw",
         "analytics_video_daily_raw",
     ],
-    "silver_physical": [
+    "silver": [
         "silver_channels",
         "silver_videos",
         "fact_channel_daily_metrics",

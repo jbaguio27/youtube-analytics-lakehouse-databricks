@@ -59,6 +59,8 @@ def _parse_iso_date(value: str, arg_name: str) -> date:
 def _resolve_window(args: argparse.Namespace) -> tuple[date, date, str]:
     start_date_raw = str(args.start_date or "").strip()
     end_date_raw = str(args.end_date or "").strip()
+    if start_date_raw.lower() in {"auto", "default", "lookback", "rolling"}:
+        start_date_raw = ""
     if end_date_raw.lower() in {"auto", "default", "yesterday"}:
         end_date_raw = ""
 

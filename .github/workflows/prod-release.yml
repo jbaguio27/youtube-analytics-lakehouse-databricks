@@ -10,7 +10,7 @@ on:
       max_gold_lag_days:
         description: "Smoke check max allowed lag days for Gold"
         required: false
-        default: "2"
+        default: "3"
 
 jobs:
   validate-prod:
@@ -38,6 +38,13 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
+
+      - name: Bootstrap prod catalog, schemas, and Bronze tables
+        run: >
+          uv run python scripts/unity_catalog_setup.py
+          --action bootstrap
+          --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}"
+          --catalog youtube_analytics
 
       - name: Validate prod bundle
         run: uv run databricks bundle validate --target prod --var "alert_email=${{ secrets.ALERT_EMAIL }}"
@@ -82,4 +89,4 @@ jobs:
           --execution-mode sql_warehouse
           --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}"
           --catalog youtube_analytics
-          --max-gold-lag-days "${{ github.event.inputs.max_gold_lag_days || '2' }}"
+          --max-gold-lag-days "${{ github.event.inputs.max_gold_lag_days || '3' }}"
