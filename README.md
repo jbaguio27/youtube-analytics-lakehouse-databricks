@@ -140,7 +140,7 @@ DBT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<your-warehouse-id>
 DBT_DATABRICKS_TOKEN=<your-token>
 ```
 
-## 10) Runbook
+## Runbook
 ### How to run ingestion
 OAuth + secret bootstrap:
 ```bash
