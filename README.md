@@ -1,14 +1,16 @@
 ﻿# YouTube Analytics Lakehouse
 A Databricks-first ELT project that ingests YouTube API data into Bronze, transforms to Silver with Lakeflow SQL, and builds Gold marts with dbt.
 
-## What this repo contains
+<img width="2511" height="1146" alt="image" src="https://github.com/user-attachments/assets/221990d7-1977-41e4-82ea-12991d41d90c" />
+
+## What this Repo Contains?
 - Databricks Asset Bundle configuration for one job and one Lakeflow pipeline (`databricks.yml`, `bundles/bundle.yml`).
 - Python ingestion and operations tasks for Bronze ingestion, optimization, and run logging (`ingestion/tasks/*.py`).
 - Lakeflow SQL definitions for Silver materialized views and country reference mapping (`lakeflow/bronze_to_silver_pipeline.sql`, `lakeflow/country_reference.sql`).
 - dbt project with Gold models and tests (`dbt/dbt_project.yml`, `dbt/models`, `dbt/tests`, `dbt/profiles.yml`).
 - Utility scripts for OAuth refresh token retrieval, Databricks secret bootstrap, and Unity Catalog/Bronze validation (`scripts/*.py`).
 
-## End to end process
+## End to End Process
 1. Run one-time local OAuth flow to retrieve a YouTube refresh token (`scripts/get_youtube_refresh_token.py`).
 2. Write YouTube OAuth credentials into a Databricks secret scope (`scripts/bootstrap_youtube_secrets.py`).
 3. Bootstrap Unity Catalog schemas/Bronze tables and validate Bronze metadata contract (`scripts/unity_catalog_setup.py`, `lakeflow/bootstrap_unity_catalog.sql`).
@@ -33,7 +35,7 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 - Dev deploy workflow (`.github/workflows/dev-deploy.yml`) for validate/deploy/run/smoke on `main` or manual trigger.
 - Prod release workflow (`.github/workflows/prod-release.yml`).
 
-## Tech stack
+## Tech Stack
 - Python 3.11+ and uv.
   - Where in repo: `pyproject.toml`, `uv.lock`.
 - Databricks SDK for Python.
@@ -49,7 +51,7 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 - GitHub Actions.
   - Where in repo: `.github/workflows/ci.yml`.
 
-## Data sources
+## Data Sources
 - YouTube Data API v3 resources:
   - `channels`
   - `playlistItems`
@@ -61,7 +63,7 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 - Google OAuth endpoints for token flow:
   - Evidence: `scripts/get_youtube_refresh_token.py`.
 
-## Data model
+## Data Model
 Bronze tables:
 - `channels_raw`
 - `playlist_items_raw`
@@ -99,7 +101,7 @@ Gold dbt models:
 - `gold_video_traffic_source_daily_summary`
 - Evidence: `dbt/models/*.sql`.
 
-## Pipelines and orchestration
+## Pipelines and Orchestration
 - Databricks pipeline resource:
   - `youtube_analytics_lakeflow` (triggered/non-continuous, serverless).
   - Evidence: `databricks.yml`, `bundles/bundle.yml`.
@@ -113,7 +115,7 @@ Gold dbt models:
   - `uv sync`, `dbt parse`, optional Databricks bundle validate and dbt singular tests when secrets are present.
   - Evidence: `.github/workflows/ci.yml`.
 
-## Local setup
+## Local Setup
 Prerequisites:
 - Python 3.11+.
 - `uv` installed.
@@ -171,14 +173,14 @@ Prechecks:
   - access to Unity Catalog `youtube_analytics`
   - permission to run the configured SQL Warehouse (for dbt tasks)
 
-Promotion commands:
+Promotion Commands:
 ```bash
 databricks bundle validate --target prod --profile <your_prod_profile> --var "alert_email=<your_email>"
 databricks bundle deploy --target prod --profile <your_prod_profile> --var "alert_email=<your_email>"
 databricks bundle run youtube_analytics_job --target prod --profile <your_prod_profile> --var "alert_email=<your_email>"
 ```
 
-Post-deploy checks:
+Post-deploy Checks:
 - Run smoke checks:
 ```bash
 uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics
@@ -199,7 +201,7 @@ databricks bundle run youtube_analytics_job --target prod --profile <your_prod_p
 uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics --max-gold-lag-days 2
 ```
 
-### How to run transforms
+### How to Run Transforms
 Lakeflow transforms run inside the Databricks job (`run_lakeflow_pipeline`).
 
 Run dbt transforms directly:
@@ -207,7 +209,7 @@ Run dbt transforms directly:
 uv run dbt run --project-dir dbt --profiles-dir dbt --target dev --select path:models
 ```
 
-### How to run tests
+### How to Run Tests
 Run all dbt tests:
 ```bash
 uv run dbt test --project-dir dbt --profiles-dir dbt --target dev
@@ -218,16 +220,16 @@ Run singular tests only:
 uv run dbt test --project-dir dbt --profiles-dir dbt --target dev --select test_type:singular
 ```
 
-### How to build docs
+### How to Build Docs
 Generate dbt docs artifacts:
 ```bash
 uv run dbt docs generate --project-dir dbt --profiles-dir dbt --target dev
 ```
 
-Docs hosting/publishing is Not in repo yet.
+Docs Hosting/Publishing is Not in repo yet.
 Evidence needed: a docs deploy workflow or hosting config.
 
-## Data quality and testing
+## Data Quality and Testing
 Implemented checks:
 - Gold uniqueness tests by grain (`dbt/tests/test_gold_*_unique.sql`).
 - Non-negative metric test (`dbt/tests/test_gold_metrics_non_negative.sql`).
@@ -235,11 +237,7 @@ Implemented checks:
 - `not_null` and relationship checks in `dbt/models/schema.yml`.
 - Warning-only monitor for new traffic source IDs (`dbt/tests/warn_new_traffic_source_ids.sql`).
 
-## Dashboards or reporting
-Not in repo yet.
-Evidence needed: dashboard source files, BI project folder, or export artifacts.
-
-## Observability and logging
+## Observability and Logging
 - `init_run_context` writes run metadata and context JSON to `bronze.run_context_log`.
   - Evidence: `ingestion/tasks/init_run_context.py`.
 - `finalize_run_log` updates run status/finalization fields (`run_status`, `finished_ts_utc`, `finalized_ts_utc`, `finalize_task_run_id`).
@@ -247,7 +245,7 @@ Evidence needed: dashboard source files, BI project folder, or export artifacts.
 - Ingestion tasks print structured JSON summaries with row/table counts.
   - Evidence: `ingestion/tasks/ingest_data_api_to_bronze.py`, `ingestion/tasks/ingest_analytics_api_to_bronze.py`.
 
-## Repository structure
+## Repository Structure
 ```text
 .
 ├── .env.example
@@ -318,23 +316,25 @@ Evidence needed: dashboard source files, BI project folder, or export artifacts.
 ## Roadmap
 - Add dashboard/reporting assets.
   - Not in repo yet.
-- Add docs publishing/hosting workflow for dbt docs.
-  - Not in repo yet.
-- Add a license file.
-  - Not in repo yet.
 - Add automated local/integration tests for Spark task modules with `dbutils` mocking.
   - Not in repo yet.
 
 ## Documentation and Images
-Placeholder image paths:
-- `docs/images/architecture.png`
-  - Should show Databricks job task flow + Lakeflow + dbt stages.
-- `docs/images/data_model_erd.png`
-  - Should show Bronze raw tables, Silver facts/dims, and Gold summary models.
-- `docs/images/pipeline_graph.png`
-  - Should show task dependency graph from `databricks.yml`.
-- `docs/images/dashboard_01.png`
-  - Should show a sample BI/dashboard view based on Gold models.
+### Databricks Lakeflow Declarative Pipeline Dev and Prod
+
+<img width="591" height="838" alt="image" src="https://github.com/user-attachments/assets/9b80bb0b-4d12-4990-be3c-77f580f78597" />
+
+### Databricks Task Dependency Dev and Prod
+
+<img width="2373" height="1072" alt="image" src="https://github.com/user-attachments/assets/ec6fe6dc-ae05-42d0-9ba3-fa8a086ea38e" />
+
+### Database Model Design
+
+<img width="480" height="1314" alt="image" src="https://github.com/user-attachments/assets/d637eb9b-0b06-49a7-bae0-685bb08883eb" />
+
+### DBT Lineage
+
+<img width="1019" height="1090" alt="image" src="https://github.com/user-attachments/assets/e050c7dc-82ec-4725-8154-cdbede2c9fa0" />
 
 ## Contributing
 - Create a branch and keep changes scoped.
