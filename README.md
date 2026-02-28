@@ -8,7 +8,7 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
 - Python ingestion and operations tasks for Bronze ingestion, optimization, and run logging (`ingestion/tasks/*.py`).
 - Lakeflow SQL definitions for Silver materialized views and country reference mapping (`lakeflow/bronze_to_silver_pipeline.sql`, `lakeflow/country_reference.sql`).
 - dbt project with Gold models and tests (`dbt/dbt_project.yml`, `dbt/models`, `dbt/tests`, `dbt/profiles.yml`).
-- Utility scripts for OAuth refresh token retrieval, Databricks secret bootstrap, and Unity Catalog/Bronze validation (`scripts/*.py`).
+- Utility scripts for OAuth refresh token retrieval, Databricks secret bootstrap, Unity Catalog/Bronze validation, and post-deploy smoke checks (`scripts/*.py`).
 
 ## End to End Process
 1. Run one-time local OAuth flow to retrieve a YouTube refresh token (`scripts/get_youtube_refresh_token.py`).
@@ -22,14 +22,15 @@ A Databricks-first ELT project that ingests YouTube API data into Bronze, transf
    - `dbt_run_gold`
    - `dbt_test`
    - `optimize_tables`
+   - `post_deploy_smoke_checks`
    - `finalize_run_log`
-5. Use optimized physical tables in `silver_physical` as dbt Gold sources (`ingestion/tasks/optimize_tables.py`, `dbt/models/schema.yml`).
+5. Build Gold models from Silver sources in schema `silver` and run post-deploy health checks (`dbt/models/schema.yml`, `scripts/post_deploy_smoke_checks.py`).
 
 ## Architecture
 - Orchestration: Databricks Job + Databricks Asset Bundles (`databricks.yml`, `bundles/bundle.yml`).
 - Ingestion: Python Spark tasks ingest raw YouTube API payloads to Bronze Delta tables (`ingestion/tasks/ingest_data_api_to_bronze.py`, `ingestion/tasks/ingest_analytics_api_to_bronze.py`).
 - Transformation: Lakeflow Declarative Pipeline SQL creates Silver materialized views (`lakeflow/bronze_to_silver_pipeline.sql`).
-- Physical serving layer: `optimize_tables.py` materializes Silver views into `silver_physical` and runs `OPTIMIZE` on supported tables.
+- Table maintenance: `optimize_tables.py` runs `OPTIMIZE` on supported Delta tables and skips views/materialized views by design.
 - Gold modeling/testing: dbt models and tests run from Databricks tasks (`ingestion/tasks/dbt_run_gold.py`, `ingestion/tasks/dbt_test.py`, `dbt/models`, `dbt/tests`).
 - CI validation: GitHub Actions workflow (`.github/workflows/ci.yml`).
 - Dev deploy workflow (`.github/workflows/dev-deploy.yml`) for validate/deploy/run/smoke on `main` or manual trigger.
@@ -185,9 +186,9 @@ Post-deploy Checks:
 ```bash
 uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics
 ```
-- Optional stricter freshness threshold:
+- Optional custom freshness threshold (match your prod-release workflow input `max_gold_lag_days`):
 ```bash
-uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics --max-gold-lag-days 2
+uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics --max-gold-lag-days <max_lag_days>
 ```
 
 Rollback:
@@ -198,7 +199,7 @@ git checkout <last_known_good_tag_or_commit>
 databricks bundle validate --target prod --profile <your_prod_profile> --var "alert_email=<your_email>"
 databricks bundle deploy --target prod --profile <your_prod_profile> --var "alert_email=<your_email>"
 databricks bundle run youtube_analytics_job --target prod --profile <your_prod_profile> --var "alert_email=<your_email>"
-uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics --max-gold-lag-days 2
+uv run python scripts/post_deploy_smoke_checks.py --warehouse-id <your_sql_warehouse_id> --profile <your_prod_profile> --catalog youtube_analytics --max-gold-lag-days <max_lag_days>
 ```
 
 ### How to Run Transforms
@@ -257,6 +258,8 @@ Implemented checks:
 ├── bundles/
 │   └── bundle.yml
 ├── databricks.yml
+├── docs/
+│   └── .gitkeep
 ├── dbt/
 │   ├── dbt_project.yml
 │   ├── profiles.yml
@@ -295,7 +298,12 @@ Implemented checks:
 ├── scripts/
 │   ├── bootstrap_youtube_secrets.py
 │   ├── get_youtube_refresh_token.py
+│   ├── post_deploy_smoke_checks.py
 │   └── unity_catalog_setup.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_ingest_analytics_window.py
+│   └── sql/
 └── uv.lock
 ```
 
@@ -310,7 +318,7 @@ Implemented checks:
   - Confirm bundle file sync path and `DBT_PROJECT_DIR` value.
   - Evidence: project-dir search logic in `ingestion/tasks/dbt_run_gold.py` and `ingestion/tasks/dbt_test.py`.
 - Optimize step skips Silver views:
-  - Expected behavior for unsupported table types; physical copies are created under `silver_physical`.
+  - Expected behavior for unsupported table types (`VIEW`, `MATERIALIZED_VIEW`); `OPTIMIZE` is applied only to supported Delta tables.
   - Evidence: `ingestion/tasks/optimize_tables.py`.
 
 ## Roadmap

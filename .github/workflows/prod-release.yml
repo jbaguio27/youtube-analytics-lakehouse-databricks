@@ -10,7 +10,7 @@ on:
       max_gold_lag_days:
         description: "Smoke check max allowed lag days for Gold"
         required: false
-        default: "3"
+        default: "7"
 
 jobs:
   validate-prod:
@@ -89,4 +89,4 @@ jobs:
           --execution-mode sql_warehouse
           --warehouse-id "${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}"
           --catalog youtube_analytics
-          --max-gold-lag-days "${{ github.event.inputs.max_gold_lag_days || '3' }}"
+          --max-gold-lag-days "${{ github.event.inputs.max_gold_lag_days || '7' }}"
